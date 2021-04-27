@@ -11,10 +11,6 @@ IEEE Transactions on Multimedia (TMM), 2021. <br />
 This code is tested on Ubuntu 16.04, with Python=3.7 (via Anaconda3), PyTorch=1.1.0, CUDA=9.0.
 
 ```
-# Create conda environment (Recommended)
-$ conda create -n refer python=3.7
-$ source activate refer
-
 # Install Dependencies
 $ conda install numpy cython
 $ pip install opencv-python tqdm nltk scipy tensorboardX requests
@@ -33,10 +29,10 @@ $ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--c
 # (or) python setup.py install --cpp_ext --cuda_ext
 ```
 
-## Dataset
+## Datasets
 ### Download
 
-Download and prepare the datasets UNC, UNC+, G-Ref, and Referit according to https://github.com/BCV-Uniandes/DMS. And put them in `data` folder.
+Download and prepare the datasets UNC, UNC+, G-Ref, and Referit according to https://github.com/BCV-Uniandes/DMS. And put them in `data/rerfer` folder.
 
 ### Process
 This code relies on depdency parsing tree and glove pretrained word embedding. You can download the processed data of dependency parsing tree and glove wordembedding and put them in `data` folder. [[Google Drive](https://drive.google.com/drive/folders/1FhrP_TNNaiWAPCW0uyFTokz6HRJBNfyA?usp=sharing)] [[Baidu Pan](https://pan.baidu.com/s/1EPo82LOJXvwvxI7zZgMXMA)] (passwd: ic1n)
@@ -79,7 +75,8 @@ $ sh train_dpn92.sh
 # train sanet-resnet101
 $ sh train_resnet101.sh
 ```
-Remenber to modify the dataset path, its dataset name, and its subset in the script.
+Remenber to modify the dataset path, the dataset name, and the subset in the script. And modify the batch size size according to your GPU memory. 
+
 ## Testing
 Download the trained model weights: [[Google Drive](https://drive.google.com/drive/folders/1cFW44mfUlPvR25N-v0-j2eO5DFEEiqTc?usp=sharing)] [[Baidu Pan](https://pan.baidu.com/s/1s3KC0XQ53IWwPQSw84qogw)] (passwd: i87v)
 ```
@@ -95,6 +92,8 @@ Remenber to modify the dataset path, its dataset name, the subset, and its train
 |--------|--------------------|---------|-----------|-----------|----------|------------|------------|-----------|--------------|
 | SANet  | [DPN92(imagenet)](http://data.lip6.fr/cadene/pretrainedmodels/dpn92_extra-b040e4a9b.pth)    | 62.36   | 65.72     | 57.62     | 50.18    | 54.87      | 43.00      | 42.06     | 65.62        |
 | SANet  | [DResNet101(vocseg)](https://drive.google.com/u/0/uc?id=1NwcwlWqA-0HqAPk3dSNNPipGMF0iS0Zu&export=download) | 61.84   | 64.95     | 57.43     | 50.38    | 55.36      | 42.74      | 44.53     | 65.88        |
+
+Note that the results of UNC and UNC+ are obtained under the optimal thresholds of their validation sets.
 
 ## Citation
 If you find this work helpful, please consider citing
