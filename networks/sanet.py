@@ -68,6 +68,7 @@ class SANet(nn.Module):
         else:
             self.emb    = nn.Embedding(dict_size, emb_size)
         self.lang_model = nn.LSTM(emb_size, hid_size//2, num_layers=lang_layers, bidirectional=True)
+        self.__backbone__ = backbone
 
         if backbone == 'resnet101':
             self.backbone = ResNet101(output_stride, nn.BatchNorm2d, pretrained_backbone)
@@ -119,7 +120,8 @@ class SANet(nn.Module):
 
         batch_size, _, featmap_H, featmap_W = vis_feat.size()
         lang_feat = self.extract_language_feat(lang.permute(1,0)) # L X B X hidden
-        lang_feat = F.normalize(lang_feat, p=2, dim=2)
+        if self.__backbone__ == 'dpn92':
+            lang_feat = F.normalize(lang_feat, p=2, dim=2)
 
         sent_feat = lang_feat[-1].unsqueeze(-1).unsqueeze(-1).expand(
                     batch_size, lang_feat.size(-1),

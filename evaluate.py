@@ -30,7 +30,6 @@ import numpy as np
 from tqdm import tqdm
 import cv2
 from PIL import Image
-from pydensecrf import densecrf
 import skimage
 parser = argparse.ArgumentParser(
     description='Structured Attention Network for Referring Image Segmentation')
@@ -78,14 +77,14 @@ parser.add_argument('--tree-hid-size', default=256, type=int,
                     help='tree-gru hidden state dimensions')
 parser.add_argument('--lang-layers', default=1, type=int,
                     help='number of language model (Bi-LSTM) stacked layers')
+parser.add_argument('--backbone', default='resnet101', type=str,
+                    help='(resnet101, dpn92)')
 
 # Other settings
 parser.add_argument('--tensorboard', action='store_true', default=False,
                     help='Using tensorboard for visualization. Default False')
 parser.add_argument('--visual-interval', default=100, type=int,
                     help='Using tensorboard for visualization. Default False')
-parser.add_argument('--crf', action='store_true', default=False,
-                    help='Using crf for refinement')
 
 engine = Engine(custom_parser=parser)
 
@@ -148,9 +147,10 @@ net = SANet(dict_size=len(refer_val.corpus),
           lang_layers=args.lang_layers,
           output_stride=args.os,
           num_classes=1,
-	      pretrained_backbone=False,
+          pretrained_backbone=False,
           pretrained_embedding=None,
-          dataset=args.dataset)
+          dataset=args.dataset,
+          backbone=args.backbone)
 
 if osp.exists(args.snapshot):
     print('Loading state dict from: {0}'.format(args.snapshot))
@@ -214,14 +214,9 @@ def evaluate(epoch=0):
     cum_U = torch.zeros(len(score_thresh)).cuda()
     eval_seg_iou_list = [.5, .6, .7, .8, .9]
 
-    if args.crf:
-        cum_I_dcrf = 0.0
-        cum_U_dcrf = 0.0
-        seg_correct_dcrf = np.zeros(len(eval_seg_iou_list))
     seg_correct = torch.zeros(len(eval_seg_iou_list), len(score_thresh)).cuda()
     seg_total = 0
-    if args.crf:
-        seg_correct_dcrf = np.zeros(len(eval_seg_iou_list))
+
     with tqdm(total=len(val_loader),
               dynamic_ncols=True,
               desc='Validation Epoch #{}'.format(epoch),
@@ -258,36 +253,11 @@ def evaluate(epoch=0):
                         inter[idx] = 0
                         union[idx] = mask.sum()
 
-                if args.crf:
-                    sigm_val = np.squeeze(out[i].cpu().numpy())
-                    d = densecrf.DenseCRF2D(320, 320, 2)
-                    U = np.expand_dims(-np.log(sigm_val), axis=0)
-                    U_ = np.expand_dims(-np.log(1 - sigm_val), axis=0)
-                    unary = np.concatenate((U_, U), axis=0)
-                    unary = unary.reshape((2, -1))
-                    d.setUnaryEnergy(unary)
-                    d.addPairwiseGaussian(sxy=3, compat=3)
-                    #import ipdb; ipdb.set_trace()
-                    img_path = osp.join(refer_val.im_dir, refer_val.images[seg_total][0])
-                    proc_im = Image.open(img_path).convert('RGB').resize((320,320), 1)
-                    proc_im = skimage.img_as_ubyte(np.array(proc_im))
-                    d.addPairwiseBilateral(sxy=20, srgb=3, rgbim=proc_im, compat=10)
-                    Q = d.inference(5)
-                    mask_ = mask.squeeze().cpu().numpy()
-                    pred_dcrf = np.argmax(Q, axis=0).reshape((320, 320)).astype(np.float32)
-                    pred_dcrf = skimage.transform.resize(pred_dcrf, [mask_.shape[0], mask_.shape[1]])
-                    inter_dcrf, union_dcrf = compute_mask_IU_np(pred_dcrf, mask_)
-                    cum_I_dcrf += inter_dcrf
-                    cum_U_dcrf += union_dcrf
-                    this_iou_dcrf = inter_dcrf / union_dcrf
-
                 this_iou = inter / union
 
                 for idx, seg_iou in enumerate(eval_seg_iou_list):
                     for jdx in range(len(score_thresh)):
                         b_seg_correct[idx, jdx] += (this_iou[jdx] >= seg_iou)
-                    if args.crf:
-                        seg_correct_dcrf[idx] += (this_iou_dcrf >= seg_iou)
                 seg_total += 1
 
                 b_cum_I += inter
@@ -352,14 +322,6 @@ def evaluate(epoch=0):
         # Print maximum IoU
         print('Maximum Overall IoU: {:2.2%} - Threshold: {:.3f}'.format(
             max_iou, score_thresh[max_idx]))
-
-        if args.crf:
-            print('-' * 26)
-            print('Results after DCRF')
-            for idx, seg_iou in enumerate(eval_seg_iou_list):
-                print('prec@{:s} = {:2.2%}'.format(
-                str(seg_iou), seg_correct_dcrf[idx] / seg_total))
-            print('Overall IoU: {:2.2%}'.format(cum_I_dcrf / cum_U_dcrf))
 
         if args.tensorboard:
             writer.add_scalar('val/max_iou', max_iou, epoch)
